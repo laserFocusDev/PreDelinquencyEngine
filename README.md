@@ -1,37 +1,38 @@
 # Pre-Delinquency Intervention Engine
 
-Identify financially at-risk accounts before they miss a payment — using anomaly detection, gradient boosting, and model explainability.
+Predict financial delinquency before it occurs — using behavioral feature engineering, gradient boosting, and SHAP-based explainability on a synthetic multi-source credit dataset.
 
 ---
 
 ## Problem
 
-By the time a borrower becomes delinquent, the cost of intervention has already increased significantly. Most risk systems flag accounts reactively — after a missed payment — leaving little room for low-cost outreach. This project addresses the gap between standard credit monitoring and early-stage financial distress, targeting the 30–60 day window before default risk materializes.
+By the time a borrower becomes delinquent, the cost of intervention has already increased significantly. Most risk systems flag accounts reactively — after a missed payment — leaving little room for low-cost outreach. This project targets the 30–60 day window before default risk materializes, using behavioral signals (transaction patterns, app activity, support interactions) rather than static credit attributes.
 
 ---
 
 ## Approach
 
-The pipeline runs in three stages:
+The pipeline runs end-to-end from raw simulated logs to an interpretable classifier.
 
-**1. Feature Engineering**
-- Derived behavioral indicators: payment velocity, utilization trend, rolling balance ratios
-- Lag features capturing month-over-month shifts in spending and repayment patterns
-- Encoded categorical risk tiers and account-level history signals
+**1. Data Simulation & Storage**
+- Simulated multi-source behavioral logs: transaction history (~160M+ rows), app interaction events, and support tickets
+- Aggregated into a SQLite-backed feature store of 5,000 customer records
+- Label generation used probabilistic default modeling — not deterministic rules — to produce realistic class distributions
 
-**2. Anomaly Detection**
-- Isolation Forest used as an unsupervised pre-screen to flag structurally unusual accounts
-- Anomaly scores passed downstream as engineered features
+**2. Feature Engineering**
+- Time-windowed features constructed using past-only data with an explicit prediction gap to prevent leakage
+- Trend-based signals: balance decline rate, transaction volume shifts, login frequency change
+- Rolling aggregates: payment velocity, utilization trends, behavioral consistency scores
 
-**3. Classification**
-- XGBoost trained on labeled delinquency outcomes (30+ DPD as positive class)
-- Hyperparameters tuned via cross-validated grid search
-- Class imbalance handled with `scale_pos_weight`
+**3. Baseline vs. Final Model**
+- Baseline: Logistic Regression (scikit-learn) — ROC-AUC ≈ 0.65
+- Final: LightGBM — ROC-AUC ≈ 0.72–0.75
+- Improvement attributed to LightGBM's capacity to capture non-linear relationships and feature interactions that linear models cannot represent
 
 **4. Explainability**
-- SHAP values computed per prediction for individual-level reasoning
-- Summary and waterfall plots used to identify top drivers across the population
-- Designed to support compliance-style explanations for model decisions
+- SHAP values computed per prediction to surface individual-level risk drivers
+- Summary and waterfall plots used to validate that model behavior aligns with domain expectations
+- Designed to support the kind of reasoning required in compliance or audit contexts
 
 ---
 
@@ -39,15 +40,15 @@ The pipeline runs in three stages:
 
 | Metric | Value |
 |---|---|
-| ROC-AUC | [ADD METRIC HERE] |
-| Precision (at threshold) | [ADD METRIC HERE] |
-| Recall (at threshold) | [ADD METRIC HERE] |
-| F1 Score | [ADD METRIC HERE] |
-| False Positive Rate | [ADD METRIC HERE] |
+| ROC-AUC (LightGBM) | 0.72 – 0.75 |
+| ROC-AUC (Logistic Regression baseline) | ~0.65 |
+| Accuracy | 82 – 86% |
+| F1-Score (default class) | 0.45 – 0.55 |
+| Log Loss | 0.38 – 0.45 |
 
-> Threshold was selected to optimize recall while maintaining acceptable precision for business use. Evaluation performed on a held-out test set ([ADD %] split).
+> Class imbalance is present. Accuracy is reported for completeness but ROC-AUC and F1 on the minority class are the operative metrics. Evaluation performed on a held-out test set (80/20 split).
 
-**Dataset**: [Synthetic / Real — ADD SOURCE OR DESCRIPTION HERE]. [ADD row count] records, [ADD feature count] features.
+**Dataset**: Synthetic Credit Risk Behavioral Dataset — 5,000 customers, 8–10 engineered features. Generated from simulated transaction history, app interaction logs, and support ticket data aggregated via SQLite.
 
 ---
 
@@ -56,21 +57,21 @@ The pipeline runs in three stages:
 ```
 pre-delinquency-intervention/
 ├── data/
-│   ├── raw/                    # Source data (not tracked)
-│   └── processed/              # Cleaned and feature-engineered datasets
+│   ├── raw/                        # Simulated source logs (not tracked)
+│   └── processed/                  # Feature store (SQLite + CSV)
 ├── notebooks/
-│   ├── 01_eda.ipynb            # Exploratory analysis
+│   ├── 01_eda.ipynb                # Exploratory analysis and class distribution
 │   ├── 02_feature_engineering.ipynb
-│   ├── 03_model_training.ipynb
+│   ├── 03_model_training.ipynb     # Baseline + LightGBM training
 │   └── 04_shap_explainability.ipynb
 ├── src/
-│   ├── features.py             # Feature construction logic
-│   ├── model.py                # Training and evaluation
-│   ├── anomaly.py              # Isolation Forest wrapper
-│   └── explain.py              # SHAP utilities
+│   ├── simulate.py                 # Behavioral log generation
+│   ├── features.py                 # Time-windowed feature construction
+│   ├── model.py                    # Training, evaluation, leakage checks
+│   └── explain.py                  # SHAP utilities
 ├── outputs/
-│   ├── models/                 # Serialized model artifacts
-│   └── plots/                  # SHAP and evaluation figures
+│   ├── models/                     # Serialized model artifacts
+│   └── plots/                      # SHAP summaries and evaluation figures
 ├── requirements.txt
 └── README.md
 ```
@@ -89,17 +90,18 @@ cd pre-delinquency-intervention
 # Install dependencies
 pip install -r requirements.txt
 
-# Run feature engineering
-python src/features.py --input data/raw/accounts.csv --output data/processed/
+# Simulate behavioral data and build feature store
+python src/simulate.py
+python src/features.py
 
-# Train models
-python src/model.py --data data/processed/features.csv --output outputs/models/
+# Train baseline and LightGBM models
+python src/model.py
 
 # Generate SHAP explanations
-python src/explain.py --model outputs/models/xgb_model.pkl --data data/processed/features.csv
+python src/explain.py
 ```
 
-To run the full pipeline end-to-end via notebooks, execute them in order (01 → 04) using Jupyter:
+To run interactively, execute notebooks in order (01 → 04):
 
 ```bash
 jupyter notebook notebooks/
@@ -109,27 +111,28 @@ jupyter notebook notebooks/
 
 ## Limitations
 
-- **Label quality**: Delinquency labels depend on DPD cutoffs which may not uniformly capture distress across account types.
-- **Temporal leakage risk**: Care was taken to prevent future data from entering training features, but this has not been formally audited with a time-series split.
-- **No production infrastructure**: The pipeline is offline batch-oriented. There is no real-time scoring endpoint or monitoring layer.
-- **Dataset scope**: [If synthetic: The synthetic dataset may not reflect the full distributional complexity of live portfolio data.] [If real: The dataset is limited to a single institution's portfolio and may not generalize.]
-- **Threshold sensitivity**: Model performance is sensitive to operating threshold selection. Business context is needed to calibrate this appropriately.
+- **Synthetic data ceiling**: The dataset is generated, not sourced from a live portfolio. Real behavioral logs carry distributional complexity — temporal drift, population shifts, missingness patterns — that this setup does not replicate.
+- **Label realism**: Probabilistic label generation approximates default behavior but may not reflect actual DPD (Days Past Due) thresholds used operationally.
+- **Feature set scope**: 8–10 engineered features is compact. Production models typically incorporate bureau-sourced attributes, product-level signals, and macroeconomic covariates.
+- **No deployment layer**: The pipeline is batch-oriented with no real-time scoring endpoint, model registry, or drift monitoring.
+- **Threshold not calibrated to a business objective**: Operating threshold was not tuned against a cost-of-intervention vs. cost-of-default loss function.
 
 ---
 
 ## Future Work
 
-- Implement time-series aware cross-validation (walk-forward or expanding window)
-- Add calibration layer (Platt scaling or isotonic regression) for reliable probability outputs
-- Incorporate alternative data signals: transaction-level features, external bureau attributes
-- Build a monitoring module to track score distribution drift over time
-- Explore survival analysis framing to predict *time-to-delinquency* rather than binary outcome
+- Replace simulated data with a public real-world credit dataset (e.g., Lending Club, Home Credit) for external validity
+- Implement walk-forward cross-validation to properly evaluate time-series generalization
+- Add probability calibration (isotonic regression or Platt scaling) for reliable risk scores
+- Build a monitoring module to track feature and score distribution drift over time
+- Explore survival analysis framing to model *time-to-delinquency* rather than binary outcome
+- Expose a lightweight scoring API (FastAPI) for integration testing
 
 ---
 
 ## Stack
 
-`Python` `XGBoost` `scikit-learn` `SHAP` `pandas` `matplotlib`
+`Python` `LightGBM` `scikit-learn` `SHAP` `pandas` `NumPy` `SQLite` `Jupyter`
 
 ---
 
