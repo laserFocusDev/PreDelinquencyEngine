@@ -55,25 +55,44 @@ The pipeline runs end-to-end from raw simulated logs to an interpretable classif
 ## Project Structure
 
 ```
-pre-delinquency-intervention/
-├── data/
-│   ├── raw/                        # Simulated source logs (not tracked)
-│   └── processed/                  # Feature store (SQLite + CSV)
-├── notebooks/
-│   ├── 01_eda.ipynb                # Exploratory analysis and class distribution
-│   ├── 02_feature_engineering.ipynb
-│   ├── 03_model_training.ipynb     # Baseline + LightGBM training
-│   └── 04_shap_explainability.ipynb
-├── src/
-│   ├── simulate.py                 # Behavioral log generation
-│   ├── features.py                 # Time-windowed feature construction
-│   ├── model.py                    # Training, evaluation, leakage checks
-│   └── explain.py                  # SHAP utilities
-├── outputs/
-│   ├── models/                     # Serialized model artifacts
-│   └── plots/                      # SHAP summaries and evaluation figures
-├── requirements.txt
-└── README.md
+Pre-Delinquency-Intervention-Engine/
+│
+├── data_generation/
+│   ├── setup_database.py        # Creates and initializes dataset
+│   ├── split_data.py            # Train/validation/test split
+│   ├── verify_data.py           # Data validation checks
+│   │
+│   ├── train_model.py           # Main training pipeline
+│   ├── train_xgboost.py         # XGBoost model training
+│   │
+│   ├── transactions.csv         # Raw dataset
+│   ├── train_data.csv           # Training data
+│   ├── val_data.csv             # Validation data
+│   ├── test_data.csv            # Test data
+│   ├── support_logs.csv         # Auxiliary logs
+│   │
+│   ├── scaler.pkl               # Data scaler
+│   ├── xgboost_model.pkl        # Trained model
+│   ├── shap_explainer.pkl       # SHAP explainer
+│   │
+│   ├── shap_summary_delinquency.png   # SHAP visualization
+│   └── threshold.txt            # Decision threshold
+│
+├── shap_outputs/
+│   ├── shap_summary_bar.png
+│   └── shap_summary_beeswarm.png
+│
+├── lgbm.py                      # LightGBM model experimentation
+├── requirements.txt             # Dependencies
+├── README.md                    # Project documentation
+├── DESIGN.md                    # System design notes
+├── IMPLEMENTATION_TASKS.md      # Development tracking
+├── LICENSE
+│
+├── venv/                        # Virtual environment (ignored)
+├── .gitignore
+└── .gitattributes
+
 ```
 
 ---
