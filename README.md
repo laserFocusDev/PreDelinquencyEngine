@@ -1,158 +1,312 @@
 # Pre-Delinquency Intervention Engine
 
-Predict financial delinquency before it occurs — using behavioral feature engineering, gradient boosting, and SHAP-based explainability on a synthetic multi-source credit dataset.
+> **Explainable Machine Learning for Early Credit Risk Detection**
+
+Predict financial delinquency **before** missed payments occur using behavioral feature engineering, LightGBM, and SHAP explainability on a synthetic multi-source credit dataset.
 
 ---
 
-## Problem
+## Overview
 
-By the time a borrower becomes delinquent, the cost of intervention has already increased significantly. Most risk systems flag accounts reactively — after a missed payment — leaving little room for low-cost outreach. This project targets the 30–60 day window before default risk materializes, using behavioral signals (transaction patterns, app activity, support interactions) rather than static credit attributes.
+Traditional credit risk systems identify borrowers only after delinquency has already begun. This project explores whether behavioral signals can identify financially vulnerable customers **30–60 days before default risk materializes**, enabling proactive intervention.
 
----
+Rather than relying solely on static credit attributes, the model learns from simulated behavioral data including transaction history, digital banking activity, and customer support interactions.
 
-## Approach
+The project implements an end-to-end machine learning pipeline including:
 
-The pipeline runs end-to-end from raw simulated logs to an interpretable classifier.
-
-**1. Data Simulation & Storage**
-- Simulated multi-source behavioral logs: transaction history (~160M+ rows), app interaction events, and support tickets
-- Aggregated into a SQLite-backed feature store of 5,000 customer records
-- Label generation used probabilistic default modeling — not deterministic rules — to produce realistic class distributions
-
-**2. Feature Engineering**
-- Time-windowed features constructed using past-only data with an explicit prediction gap to prevent leakage
-- Trend-based signals: balance decline rate, transaction volume shifts, login frequency change
-- Rolling aggregates: payment velocity, utilization trends, behavioral consistency scores
-
-**3. Baseline vs. Final Model**
-- Baseline: Logistic Regression (scikit-learn) — ROC-AUC ≈ 0.65
-- Final: LightGBM — ROC-AUC ≈ 0.72–0.75
-- Improvement attributed to LightGBM's capacity to capture non-linear relationships and feature interactions that linear models cannot represent
-
-**4. Explainability**
-- SHAP values computed per prediction to surface individual-level risk drivers
-- Summary and waterfall plots used to validate that model behavior aligns with domain expectations
-- Designed to support the kind of reasoning required in compliance or audit contexts
+- Behavioral data simulation
+- Feature engineering with leakage prevention
+- LightGBM-based credit risk prediction
+- Hyperparameter optimization
+- SHAP explainability
+- Business-oriented evaluation metrics
 
 ---
 
-## Results
+## Problem Statement
 
-| Metric | Value |
-|---|---|
-| ROC-AUC (LightGBM) | 0.72 – 0.75 |
-| ROC-AUC (Logistic Regression baseline) | ~0.65 |
-| Accuracy | 82 – 86% |
-| F1-Score (default class) | 0.45 – 0.55 |
-| Log Loss | 0.38 – 0.45 |
+Financial institutions often intervene only after a borrower misses a payment, when recovery costs are already increasing.
 
-> Class imbalance is present. Accuracy is reported for completeness but ROC-AUC and F1 on the minority class are the operative metrics. Evaluation performed on a held-out test set (80/20 split).
+The objective of this project is to identify customers entering financial stress before delinquency occurs by learning behavioral patterns that precede default.
 
-**Dataset**: Synthetic Credit Risk Behavioral Dataset — 5,000 customers, 8–10 engineered features. Generated from simulated transaction history, app interaction logs, and support ticket data aggregated via SQLite.
+Instead of predicting whether a customer has already defaulted, the model estimates future delinquency risk from recent customer behavior.
 
 ---
 
-## Project Structure
+# Pipeline
 
 ```
-Pre-Delinquency-Intervention-Engine/
+Raw Behavioural Logs
+│
+├── Transaction History
+├── Banking App Activity
+└── Support Interactions
+        │
+        ▼
+SQLite Feature Store
+        │
+        ▼
+Feature Engineering
+        │
+        ▼
+Train / Validation / Test Split
+        │
+        ▼
+Baseline LightGBM
+        │
+        ▼
+Hyperparameter Optimization
+(RandomizedSearchCV)
+        │
+        ▼
+Final LightGBM Model
+        │
+        ▼
+Model Evaluation
+        │
+        ▼
+SHAP Explainability
+```
+
+---
+
+# Dataset
+
+This project uses a synthetic multi-source behavioral credit dataset.
+
+### Sources
+
+- Customer transaction history
+- Banking application activity
+- Customer support logs
+
+The raw logs are aggregated into customer-level features stored using SQLite.
+
+Dataset characteristics:
+
+- ~5,000 customers
+- ~160 million simulated transaction records
+- Binary classification
+- Moderate class imbalance
+- Time-aware feature engineering
+
+---
+
+# Feature Engineering
+
+The model uses behavioral indicators rather than traditional demographic variables.
+
+Example engineered features include:
+
+| Feature | Description |
+|----------|-------------|
+| Balance Decline Rate | Rate of decrease in account balance |
+| Transaction Volume Trend | Change in spending behaviour |
+| Payment Velocity | Time between repayments |
+| Login Frequency Change | Banking application engagement |
+| Behavioral Consistency Score | Stability of customer behaviour |
+| Credit Utilization Trend | Utilization changes over time |
+
+All features are constructed using historical observations only to prevent target leakage.
+
+---
+
+# Model Development
+
+## Baseline
+
+- LightGBM
+- Early stopping
+- Class imbalance handling
+- Native LightGBM API
+
+## Hyperparameter Optimization
+
+RandomizedSearchCV is used with Stratified K-Fold cross validation.
+
+Optimized parameters include:
+
+- Number of leaves
+- Maximum depth
+- Learning rate
+- Feature fraction
+- Bagging fraction
+- Regularization
+- Minimum child samples
+
+Class imbalance is handled using:
+
+```
+scale_pos_weight = Negative Samples / Positive Samples
+```
+
+---
+
+# Explainability
+
+Model predictions are interpreted using **SHAP (SHapley Additive Explanations).**
+
+Generated outputs include:
+
+- SHAP Beeswarm Plot
+- SHAP Feature Importance Plot
+- Ranked Feature Importance Table
+
+These explanations improve transparency and make the model easier to validate in regulated financial environments.
+
+---
+
+# Evaluation
+
+The project evaluates both statistical and business-oriented metrics.
+
+| Metric | Description |
+|---------|-------------|
+| ROC-AUC | Overall ranking performance |
+| PR-AUC | Performance on imbalanced data |
+| Recall@Top10% | Percentage of defaults captured within highest-risk customers |
+| Classification Report | Precision, Recall and F1 |
+
+The pipeline also reports:
+
+- Train AUC
+- Test AUC
+- Overfitting Gap
+- Mean SHAP importance
+
+---
+
+# Repository Structure
+
+```
+PreDelinquencyEngine/
+
+│
+├── backend/
 │
 ├── data_generation/
-│   ├── setup_database.py        # Creates and initializes dataset
-│   ├── split_data.py            # Train/validation/test split
-│   ├── verify_data.py           # Data validation checks
-│   │
-│   ├── train_model.py           # Main training pipeline
-│   ├── train_xgboost.py         # XGBoost model training
-│   │
-│   ├── transactions.csv         # Raw dataset
-│   ├── train_data.csv           # Training data
-│   ├── val_data.csv             # Validation data
-│   ├── test_data.csv            # Test data
-│   ├── support_logs.csv         # Auxiliary logs
-│   │
-│   ├── scaler.pkl               # Data scaler
-│   ├── xgboost_model.pkl        # Trained model
-│   ├── shap_explainer.pkl       # SHAP explainer
-│   │
-│   ├── shap_summary_delinquency.png   # SHAP visualization
-│   └── threshold.txt            # Decision threshold
+│   ├── setup_database.py
+│   ├── split_data.py
+│   ├── verify_data.py
+│   ├── train_model.py
+│   ├── train_xgboost.py
+│   ├── train_data.csv
+│   ├── val_data.csv
+│   ├── test_data.csv
+│   └── support_logs.csv
 │
 ├── shap_outputs/
 │   ├── shap_summary_bar.png
 │   └── shap_summary_beeswarm.png
 │
-├── lgbm.py                      # LightGBM model experimentation
-├── requirements.txt             # Dependencies
-├── README.md                    # Project documentation
-├── DESIGN.md                    # System design notes
-├── IMPLEMENTATION_TASKS.md      # Development tracking
-├── LICENSE
-│
-├── venv/                        # Virtual environment (ignored)
-├── .gitignore
-└── .gitattributes
-
+├── lgbm.py
+├── DESIGN.md
+├── IMPLEMENTATION_TASKS.md
+├── requirements.txt
+└── README.md
 ```
 
 ---
 
-## How to Run
+# Installation
 
-**Requirements**: Python 3.9+
+Clone the repository
 
 ```bash
-# Clone the repository
-git clone https://github.com/[YOUR_USERNAME]/pre-delinquency-intervention.git
-cd pre-delinquency-intervention
+git clone https://github.com/<username>/PreDelinquencyEngine.git
 
-# Install dependencies
+cd PreDelinquencyEngine
+```
+
+Install dependencies
+
+```bash
 pip install -r requirements.txt
-
-# Simulate behavioral data and build feature store
-python src/simulate.py
-python src/features.py
-
-# Train baseline and LightGBM models
-python src/model.py
-
-# Generate SHAP explanations
-python src/explain.py
 ```
 
-To run interactively, execute notebooks in order (01 → 04):
+---
+
+# Training
+
+Run the complete pipeline
 
 ```bash
-jupyter notebook notebooks/
+python lgbm.py
+```
+
+The pipeline automatically performs:
+
+- Data loading
+- Class imbalance calculation
+- Baseline LightGBM training
+- Hyperparameter optimization
+- Model evaluation
+- Model serialization
+- SHAP analysis
+
+Generated outputs include:
+
+```
+lgbm_credit_risk_model.pkl
+
+shap_outputs/
+    shap_summary_bar.png
+    shap_summary_beeswarm.png
 ```
 
 ---
 
-## Limitations
+# Technologies
 
-- **Synthetic data ceiling**: The dataset is generated, not sourced from a live portfolio. Real behavioral logs carry distributional complexity — temporal drift, population shifts, missingness patterns — that this setup does not replicate.
-- **Label realism**: Probabilistic label generation approximates default behavior but may not reflect actual DPD (Days Past Due) thresholds used operationally.
-- **Feature set scope**: 8–10 engineered features is compact. Production models typically incorporate bureau-sourced attributes, product-level signals, and macroeconomic covariates.
-- **No deployment layer**: The pipeline is batch-oriented with no real-time scoring endpoint, model registry, or drift monitoring.
-- **Threshold not calibrated to a business objective**: Operating threshold was not tuned against a cost-of-intervention vs. cost-of-default loss function.
-
----
-
-## Future Work
-
-- Replace simulated data with a public real-world credit dataset (e.g., Lending Club, Home Credit) for external validity
-- Implement walk-forward cross-validation to properly evaluate time-series generalization
-- Add probability calibration (isotonic regression or Platt scaling) for reliable risk scores
-- Build a monitoring module to track feature and score distribution drift over time
-- Explore survival analysis framing to model *time-to-delinquency* rather than binary outcome
-- Expose a lightweight scoring API (FastAPI) for integration testing
+| Category | Technologies |
+|-----------|--------------|
+| Language | Python |
+| Machine Learning | LightGBM, Scikit-learn |
+| Explainability | SHAP |
+| Data Processing | Pandas, NumPy |
+| Hyperparameter Tuning | RandomizedSearchCV |
+| Storage | SQLite |
+| Visualization | Matplotlib |
 
 ---
 
-## Stack
+# Limitations
 
-`Python` `LightGBM` `scikit-learn` `SHAP` `pandas` `NumPy` `SQLite` `Jupyter`
+- Uses synthetic behavioral data rather than production financial records.
+- Binary labels are probabilistically generated.
+- Feature space is intentionally compact.
+- No deployment or model monitoring layer.
+- Thresholds are not optimized against business costs.
 
 ---
 
-*Built as a student project with focus on real-world applicability in consumer credit risk.*
+# Future Improvements
+
+- Train on Lending Club or Home Credit datasets.
+- Implement time-series cross validation.
+- Probability calibration using Platt Scaling or Isotonic Regression.
+- Add FastAPI inference service.
+- Add MLflow experiment tracking.
+- Build model drift monitoring.
+- Deploy interactive dashboard.
+
+---
+
+# Learning Outcomes
+
+This project demonstrates:
+
+- End-to-end machine learning pipeline design
+- Credit risk modelling
+- Feature engineering
+- Class imbalance handling
+- Hyperparameter optimization
+- Explainable AI using SHAP
+- Business-aware evaluation metrics
+- Financial machine learning workflows
+
+---
+
+## License
+
+Released under the MIT License.
