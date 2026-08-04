@@ -213,7 +213,7 @@ PreDelinquencyEngine/
 Clone the repository
 
 ```bash
-git clone https://github.com/<username>/PreDelinquencyEngine.git
+git clone https://github.com/laserFocusDev/PreDelinquencyEngine.git
 
 cd PreDelinquencyEngine
 ```
